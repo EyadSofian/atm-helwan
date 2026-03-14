@@ -160,11 +160,11 @@ class AtmModel {
   double get latitude => lat;
   double get longitude => lng;
 
-  /// Applies a 3-hour time-decay rule:
-  /// if the last report is older than 3 hours → unknown.
+  /// Applies a 2-hour time-decay rule (matching the majority vote window):
+  /// if the last report is older than 2 hours → unknown.
   AtmStatus get effectiveStatus {
     final age = DateTime.now().difference(lastUpdated);
-    if (age.inHours >= 3) return AtmStatus.unknown;
+    if (age.inHours >= 2) return AtmStatus.unknown;
     return AtmStatus.fromKey(dominantStatus);
   }
 

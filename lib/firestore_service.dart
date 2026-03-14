@@ -1,4 +1,20 @@
+// =============================================================================
+// firestore_service.dart — Firestore data layer
+// =============================================================================
+//
+// Manages reads & writes to these Firestore collections:
+//   • atms/          — The ATM documents (name, location, votes, status).
+//   • atms/{id}/reports/  — Individual timestamped reports per ATM
+//                           (used by the majority vote algorithm).
+//   • userVotes/     — Tracks per-user-per-ATM voting to prevent spam.
+//
+// TO INTEGRATE WITH A DIFFERENT BACKEND:
+// Replace the Firestore calls in each method with your HTTP / REST / GraphQL
+// calls.  The method signatures and return types can stay the same.
+// =============================================================================
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'atm_model.dart';
 
 class FirestoreService {
@@ -6,6 +22,8 @@ class FirestoreService {
 
   static const String _atmCollection = 'atms';
   static const String _voteCollection = 'userVotes';
+  /// Subcollection under each ATM doc that stores individual reports.
+  static const String _reportsSubcollection = 'reports';
 
   /// Returns a live stream of all ATMs from Firestore.
   Stream<List<AtmModel>> getAtmsStream() {
@@ -91,7 +109,9 @@ class FirestoreService {
   }
 
   /// Convenience wrapper used by AppProvider.submitReport.
-  /// Increments the vote for [statusKey] and recomputes dominant status.
+  /// Increments the vote for [statusKey], recomputes dominant status,
+  /// AND writes an individual timestamped report to the reports subcollection
+  /// (used by the majority vote algorithm, Feature 4).
   Future<void> updateAtmStatus({
     required String atmId,
     required AtmStatus newStatus,
@@ -128,6 +148,55 @@ class FirestoreService {
         'lastUpdated': FieldValue.serverTimestamp(),
       });
     });
+
+    // Also record an individual timestamped report for the vote algorithm.
+    await writeReport(atmId: atmId, statusKey: statusKey);
+  }
+
+  // ── Feature 4: Individual Report Tracking ─────────────────────────────
+
+  /// Writes a single timestamped report to the ATM's reports subcollection.
+  ///
+  /// This data powers the [MajorityVoteAlgorithm] (see vote_algorithm.dart).
+  /// Each report has: userId, status, timestamp.
+  Future<void> writeReport({
+    required String atmId,
+    required String statusKey,
+  }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
+    await _db
+        .collection(_atmCollection)
+        .doc(atmId)
+        .collection(_reportsSubcollection)
+        .add({
+      'userId': uid,
+      'status': statusKey,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Fetches all reports for an ATM submitted within [window] of now.
+  ///
+  /// Returns a list of raw maps that can be passed to
+  /// [MajorityVoteAlgorithm.computeStatus] via [AtmReport.fromMap].
+  ///
+  /// TO INTEGRATE WITH A BACKEND API:
+  /// Replace this with an HTTP call to your /atms/{id}/reports endpoint
+  /// with a query parameter like `?since=<ISO8601 timestamp>`.
+  Future<List<Map<String, dynamic>>> getRecentReports({
+    required String atmId,
+    Duration window = const Duration(hours: 2),
+  }) async {
+    final cutoff = DateTime.now().subtract(window);
+    final snapshot = await _db
+        .collection(_atmCollection)
+        .doc(atmId)
+        .collection(_reportsSubcollection)
+        .where('timestamp', isGreaterThan: Timestamp.fromDate(cutoff))
+        .orderBy('timestamp', descending: true)
+        .get();
+
+    return snapshot.docs.map((doc) => doc.data()).toList();
   }
 
   /// Adds a brand-new ATM document to Firestore.

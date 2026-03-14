@@ -30,3 +30,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Pre-populated ATM seed data (Feature 2).
+  assets:
+    - assets/atm_seed_data.json
