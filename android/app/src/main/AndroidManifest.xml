@@ -34,7 +34,7 @@
         <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyDER3dow4VNhrEVf7SLyl7scWEZsJRibyo" />
+            android:value="YOUR_GOOGLE_MAPS_KEY" />
     </application>
 
     <!-- Location permissions for Google Maps & Geolocator -->

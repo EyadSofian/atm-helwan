@@ -6,7 +6,6 @@ import 'atm_model.dart';
 import 'app_provider.dart';
 import 'firestore_service.dart';
 import 'status_bottom_sheet.dart';
-import 'add_atm_bottom_sheet.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -171,11 +170,12 @@ class _MapScreenState extends State<MapScreen> {
         backgroundColor: Colors.indigo,
         tooltip: 'إضافة ATM جديد',
         onPressed: () {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (_) => const AddAtmBottomSheet(),
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('إضافة ATM جديد غير متاحة حالياً.'),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+            ),
           );
         },
         child: const Icon(Icons.add, color: Colors.white),
