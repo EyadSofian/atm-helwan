@@ -14,6 +14,7 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 
@@ -48,11 +49,16 @@ class _MapScreenState extends State<MapScreen> {
   StreamSubscription<List<AtmModel>>? _atmSubscription;
   bool _markersReady = false;
 
+  /// Custom map style JSON that hides default Google Maps POI icons
+  /// (banks, ATMs, etc.) so they don't overlap with our custom markers.
+  String? _mapStyle;
+
   @override
   void initState() {
     super.initState();
     _subscribeToAtms();
     _buildRedZonePolygons();
+    _loadMapStyle();
 
     // Initialise custom markers after first frame (needs MediaQuery).
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -70,6 +76,15 @@ class _MapScreenState extends State<MapScreen> {
         context.read<AppProvider>().fetchUserLocation();
       }
     });
+  }
+
+  /// Load the custom map style that hides default POI icons.
+  Future<void> _loadMapStyle() async {
+    try {
+      _mapStyle = await rootBundle.loadString('assets/map_style.json');
+    } catch (e) {
+      debugPrint('[MapScreen] Could not load map style: $e');
+    }
   }
 
   @override
@@ -260,7 +275,14 @@ class _MapScreenState extends State<MapScreen> {
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
             mapToolbarEnabled: false,
-            onMapCreated: (ctrl) => _mapController.complete(ctrl),
+            onMapCreated: (ctrl) {
+              _mapController.complete(ctrl);
+              // Apply custom style to hide default POI icons (ATMs, banks)
+              // so they don't overlap with our custom branded markers.
+              if (_mapStyle != null) {
+                ctrl.setMapStyle(_mapStyle);
+              }
+            },
             onTap: _onMapTapped,
           ),
           _buildLegend(),

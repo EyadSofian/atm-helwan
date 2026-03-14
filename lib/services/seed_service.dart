@@ -1,20 +1,21 @@
 // =============================================================================
-// seed_service.dart — Feature 2: Pre-Populated ATMs (Seed from JSON)
+// seed_service.dart — ATM Seeding (Google Places API + JSON fallback)
 // =============================================================================
 //
-// Responsible for loading the local JSON asset that contains pre-defined ATM
-// locations and writing them to Firestore **only if the collection is empty**
-// (i.e. first run).
+// Responsible for populating the Firestore "atms" collection with real ATM
+// locations.  On first run it:
 //
-// The JSON file is located at: assets/atm_seed_data.json
+//   1. Tries to fetch real ATMs from the Google Places API (Nearby Search).
+//   2. If the API call succeeds and returns results, writes those to Firestore.
+//   3. If the API fails or returns zero results, falls back to the local
+//      JSON asset (assets/atm_seed_data.json) as a safety net.
 //
-// HOW TO ADD YOUR OWN ATMs:
-// Simply add entries to that JSON file with the fields:
-//   { "name": "...", "bank": "...", "lat": 29.xxxx, "lng": 31.xxxx }
+// On subsequent runs, if ATMs already exist in Firestore, the seeding is
+// skipped entirely.
 //
-// HOW TO REPLACE WITH A BACKEND API:
-// Replace the body of [_loadSeedData] with an HTTP call to your endpoint
-// and parse the response into the same List<Map<String, dynamic>> format.
+// HOW TO FORCE A RE-SEED:
+//   Delete all documents in the "atms" Firestore collection, then restart
+//   the app.  The seed will run again.
 // =============================================================================
 
 import 'dart:convert';
@@ -23,65 +24,64 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../atm_model.dart';
+import 'places_service.dart';
 
 class SeedService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   static const String _atmCollection = 'atms';
 
   /// Call this once during app startup (e.g. from the Splash Screen).
-  /// It checks whether the "atms" Firestore collection already contains
-  /// documents.  If it does, the function returns immediately — no duplicate
-  /// data will be written.
   ///
-  /// If the collection is empty (first launch), it reads the local JSON
-  /// asset and batch-writes all ATMs into Firestore.
+  /// If ATMs already exist in Firestore, returns immediately.
+  /// Otherwise, fetches from Google Places API first, then falls back
+  /// to the local JSON seed data.
   Future<void> seedIfNeeded() async {
     try {
       // Quick-check: fetch a single document to see if data exists.
-      final snapshot = await _db
-          .collection(_atmCollection)
-          .limit(1)
-          .get();
+      final snapshot = await _db.collection(_atmCollection).limit(1).get();
 
       if (snapshot.docs.isNotEmpty) {
         debugPrint('[SeedService] ATMs already exist — skipping seed.');
         return;
       }
 
-      // No documents found → load and write seed data.
-      final seedAtms = await _loadSeedData();
-      await _batchWrite(seedAtms);
-      debugPrint('[SeedService] Seeded ${seedAtms.length} ATMs successfully.');
+      // ── Step 1: Try Google Places API ────────────────────────────────
+      debugPrint('[SeedService] No ATMs found. Fetching from Google Places API...');
+      final placesService = PlacesService();
+      final placesAtms = await placesService.fetchAtmsInServiceZone();
+
+      if (placesAtms.isNotEmpty) {
+        await _batchWrite(placesAtms);
+        debugPrint('[SeedService] Seeded ${placesAtms.length} ATMs from Google Places API.');
+        return;
+      }
+
+      // ── Step 2: Fall back to local JSON ──────────────────────────────
+      debugPrint('[SeedService] Places API returned 0 results. Falling back to JSON seed.');
+      final jsonAtms = await _loadJsonSeedData();
+      await _batchWrite(jsonAtms);
+      debugPrint('[SeedService] Seeded ${jsonAtms.length} ATMs from local JSON.');
     } catch (e) {
-      // Non-fatal.  The app can work without seed data if ATMs are added
-      // manually through the "Add ATM" flow later.
+      // Non-fatal — the app can work without seed data.
       debugPrint('[SeedService] Seed failed (non-fatal): $e');
     }
   }
 
   /// Reads `assets/atm_seed_data.json` and parses it into a list of maps.
-  ///
-  /// ──────────────────────────────────────────────────────────────────────
-  /// TO INTEGRATE WITH A BACKEND API:
-  /// Replace the body of this method with an HTTP request, e.g.:
-  ///
-  ///   final response = await http.get(Uri.parse('https://your-api.com/atms'));
-  ///   return List<Map<String, dynamic>>.from(jsonDecode(response.body));
-  ///
-  /// The rest of the seed pipeline will work without changes.
-  /// ──────────────────────────────────────────────────────────────────────
-  Future<List<Map<String, dynamic>>> _loadSeedData() async {
+  Future<List<Map<String, dynamic>>> _loadJsonSeedData() async {
     final jsonString = await rootBundle.loadString('assets/atm_seed_data.json');
     final List<dynamic> decoded = jsonDecode(jsonString);
     return decoded.cast<Map<String, dynamic>>();
   }
 
-  /// Writes all seed ATMs to Firestore in a single batch for efficiency.
+  /// Writes all ATMs to Firestore in a single batch for efficiency.
+  /// Each ATM defaults to "unknown" status since we have no crowdsourced
+  /// data yet — they'll appear as grey markers on the map.
   Future<void> _batchWrite(List<Map<String, dynamic>> atms) async {
     final batch = _db.batch();
 
     for (final atm in atms) {
-      final docRef = _db.collection(_atmCollection).doc(); // auto-ID
+      final docRef = _db.collection(_atmCollection).doc();
 
       // Build the initial votes map — all zeroes, status unknown.
       final votes = <String, int>{
@@ -92,11 +92,14 @@ class SeedService {
       };
 
       batch.set(docRef, {
-        'name': atm['name'] ?? 'Unnamed ATM',
+        'name': atm['name'] ?? 'ATM',
         'bank': atm['bank'] ?? '',
+        'placeId': atm['placeId'] ?? '',
+        'address': atm['address'] ?? '',
         'lat': (atm['lat'] as num?)?.toDouble() ?? 0.0,
         'lng': (atm['lng'] as num?)?.toDouble() ?? 0.0,
         'votes': votes,
+        // Default to UNKNOWN — every ATM starts grey until users report.
         'dominantStatus': kStatusUnknown,
         'lastUpdated': FieldValue.serverTimestamp(),
       });

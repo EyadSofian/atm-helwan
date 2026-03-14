@@ -1,3 +1,3 @@
 class Secrets {
-  static const String googleMapsApiKey = 'YOUR_KEY_HERE';
+  static const String googleMapsApiKey = 'AIzaSyC-TC3PVkLHMVGAOEWojbvJhXh_NK018HY';
 }

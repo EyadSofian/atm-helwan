@@ -18,6 +18,8 @@ dependencies:
   # Maps & Location
   google_maps_flutter: ^2.6.1
   geolocator: ^11.0.0
+  # HTTP for Google Places API
+  http: ^1.2.1
 
   # Storage & State
   shared_preferences: ^2.2.3
@@ -31,6 +33,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Pre-populated ATM seed data (Feature 2).
+  # Pre-populated ATM seed data (Feature 2) + map style.
   assets:
     - assets/atm_seed_data.json
+    - assets/map_style.json
