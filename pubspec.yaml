@@ -1,0 +1,32 @@
+name: atm_helwan
+description: Crowdsourced ATM status tracker for Helwan, Egypt.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^2.27.1
+  firebase_auth: ^4.18.0
+  cloud_firestore: ^4.15.9
+
+  # Maps & Location
+  google_maps_flutter: ^2.6.1
+  geolocator: ^11.0.0
+
+  # Storage & State
+  shared_preferences: ^2.2.3
+  provider: ^6.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

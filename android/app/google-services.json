@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "761892859360",
+    "project_id": "atm-helwan",
+    "storage_bucket": "atm-helwan.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:761892859360:android:ea7b38929aa91f9a5a0f85",
+        "android_client_info": {
+          "package_name": "com.example.atm_helwan"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAIQ__Ay-6VYpvS-hJdJtX_g6XnG2LlstE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
